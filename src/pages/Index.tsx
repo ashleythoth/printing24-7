@@ -1,30 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut } from "lucide-react";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
-
-const orders = [
-  {
-    id: 1,
-    files: 2,
-    status: "SUBMITTED",
-    location: "Staples Print & Marketing",
-    copies: 1,
-    size: 'Letter (8.5" x 11")',
-    color: "Color",
-    date: "Mar 11, 11:45 PM",
-  },
-  {
-    id: 2,
-    files: 1,
-    status: "SUBMITTED",
-    location: "Staples Print & Marketing",
-    copies: 1,
-    size: 'Letter (8.5" x 11")',
-    color: "Color",
-    date: "Mar 6, 9:04 PM",
-  },
-];
+import type { PrintOrder } from "@/integrations/supabase/types";
 
 const steps = [
   { label: "Upload", icon: "upload", color: "bg-blue-100", iconColor: "text-blue-500" },
@@ -64,10 +42,17 @@ function StepIcon({ icon, color, iconColor }: { icon: string; color: string; ico
   return null;
 }
 
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export default function Index() {
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState("there");
+  const [orders, setOrders] = useState<PrintOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -83,8 +68,26 @@ export default function Index() {
     });
   }, []);
 
+  const fetchOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    const { data } = await supabase
+      .from("print_orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setOrders((data as PrintOrder[]) ?? []);
+    setLoadingOrders(false);
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
   async function handleSignOut() {
     await supabase.auth.signOut();
+  }
+
+  function handleOrderCreated() {
+    fetchOrders();
   }
 
   return (
@@ -153,37 +156,54 @@ export default function Index() {
         {/* Your Orders */}
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-3">Your Orders</h2>
-          <div className="space-y-3">
-            {orders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-gray-400" />
-                    <span className="text-sm text-gray-500 font-medium">
-                      {order.files} {order.files === 1 ? "file" : "files"}
+          {loadingOrders ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 shadow-sm flex flex-col items-center gap-2 text-center">
+              <FileText className="w-10 h-10 text-gray-300" />
+              <p className="text-gray-500 font-medium">No orders yet</p>
+              <p className="text-gray-400 text-sm">Tap "New Print Order" to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((order) => (
+                <div key={order.id} className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-gray-400" />
+                      <span className="text-sm text-gray-500 font-medium">
+                        {order.file_paths.length} {order.file_paths.length === 1 ? "file" : "files"}
+                      </span>
+                    </div>
+                    <span className="flex items-center gap-1.5 bg-orange-50 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-200">
+                      <Clock className="w-3.5 h-3.5" />
+                      {order.status}
                     </span>
                   </div>
-                  <span className="flex items-center gap-1.5 bg-orange-50 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-200">
-                    <Clock className="w-3.5 h-3.5" />
-                    {order.status}
-                  </span>
+                  <h3 className="text-base font-bold text-gray-900 mb-1">{order.location}</h3>
+                  <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
+                    <span>{order.copies} {order.copies === 1 ? "copy" : "copies"}</span>
+                    <span>•</span>
+                    <span>{order.size}</span>
+                    <span>•</span>
+                    <span>{order.color}</span>
+                    <span className="ml-auto text-gray-400 text-xs">{formatDate(order.created_at)}</span>
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-gray-900 mb-1">{order.location}</h3>
-                <div className="flex items-center gap-1 text-sm text-gray-500">
-                  <span>{order.copies} copy</span>
-                  <span>•</span>
-                  <span>{order.size}</span>
-                  <span>•</span>
-                  <span>{order.color}</span>
-                  <span className="ml-auto text-gray-400 text-xs">{order.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {showModal && <NewPrintOrderModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <NewPrintOrderModal
+          onClose={() => setShowModal(false)}
+          onOrderCreated={handleOrderCreated}
+        />
+      )}
     </div>
   );
 }

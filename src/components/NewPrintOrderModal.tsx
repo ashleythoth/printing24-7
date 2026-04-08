@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
-import { X, Upload, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, FileText, Check, Loader2 } from "lucide-react";
+import { X, Upload, MapPin, CheckSquare, ChevronRight, FileText, Check, Loader2, AlertCircle } from "lucide-react";
 import { getPageCount } from "@/utils/pageCount";
+import { supabase } from "@/integrations/supabase/client";
 
-type Step = "upload" | "location" | "options" | "submit" | "done";
+type Step = "upload" | "location" | "options" | "submit";
 
 const STEPS: Step[] = ["upload", "location", "options", "submit"];
 
@@ -11,7 +12,6 @@ const STEP_LABELS: Record<Step, string> = {
   location: "Location",
   options: "Options",
   submit: "Submit",
-  done: "Done",
 };
 
 const LOCATIONS = [
@@ -34,7 +34,7 @@ interface FileWithPages {
   loading: boolean;
 }
 
-export default function NewPrintOrderModal({ onClose }: { onClose: () => void }) {
+export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClose: () => void; onOrderCreated?: () => void }) {
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<FileWithPages[]>([]);
   const [location, setLocation] = useState("");
@@ -45,15 +45,17 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
     sides: "One-sided",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stepIndex = STEPS.indexOf(step);
-
   const totalPages = files.reduce((sum, f) => sum + (f.pages ?? 0), 0);
 
   function nextStep() {
     if (step === "submit") {
-      setSubmitted(true);
+      handleSubmitOrder();
       return;
     }
     const next = STEPS[stepIndex + 1];
@@ -63,6 +65,69 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
   function prevStep() {
     const prev = STEPS[stepIndex - 1];
     if (prev) setStep(prev);
+  }
+
+  async function handleSubmitOrder() {
+    setSubmitting(true);
+    setSubmitError("");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSubmitError("You must be logged in to submit an order.");
+      setSubmitting(false);
+      return;
+    }
+
+    const orderId = crypto.randomUUID();
+    const filePaths: string[] = [];
+
+    // Upload each file to Supabase Storage
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const ext = f.file.name.split(".").pop();
+      const path = `${user.id}/${orderId}/${i + 1}_${f.file.name}`;
+      setUploadProgress(`Uploading file ${i + 1} of ${files.length}…`);
+
+      const { error } = await supabase.storage
+        .from("print-orders")
+        .upload(path, f.file, { upsert: false });
+
+      if (error) {
+        setSubmitError(`Failed to upload ${f.file.name}: ${error.message}`);
+        setSubmitting(false);
+        setUploadProgress("");
+        return;
+      }
+
+      filePaths.push(path);
+    }
+
+    setUploadProgress("Saving order…");
+
+    // Save order to database
+    const { error: dbError } = await supabase.from("print_orders").insert({
+      id: orderId,
+      user_id: user.id,
+      location,
+      copies: options.copies,
+      size: options.size,
+      color: options.color,
+      sides: options.sides,
+      total_pages: totalPages,
+      file_paths: filePaths,
+      status: "SUBMITTED",
+    });
+
+    setSubmitting(false);
+    setUploadProgress("");
+
+    if (dbError) {
+      setSubmitError(`Failed to save order: ${dbError.message}`);
+      return;
+    }
+
+    setSubmitted(true);
+    onOrderCreated?.();
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -83,7 +148,6 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
       );
     }
 
-    // Reset input so same file can be re-added
     e.target.value = "";
   }
 
@@ -97,7 +161,7 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
     (step === "upload" && files.length > 0 && !anyLoading) ||
     (step === "location" && location !== "") ||
     step === "options" ||
-    step === "submit";
+    (step === "submit" && !submitting);
 
   if (submitted) {
     return (
@@ -213,7 +277,6 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
                     </div>
                   ))}
 
-                  {/* Total pages summary */}
                   {!anyLoading && totalPages > 0 && (
                     <div className="flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
                       <span className="text-sm font-semibold text-blue-700">Total pages</span>
@@ -369,13 +432,27 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
                   <span className="text-gray-800 font-semibold">{options.sides}</span>
                 </div>
               </div>
+
+              {submitError && (
+                <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-600 text-sm">{submitError}</p>
+                </div>
+              )}
+
+              {submitting && uploadProgress && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+                  <p className="text-blue-600 text-sm font-medium">{uploadProgress}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer Buttons */}
         <div className="px-5 pb-8 pt-3 flex gap-3 border-t border-gray-100">
-          {stepIndex > 0 && (
+          {stepIndex > 0 && !submitting && (
             <button
               onClick={prevStep}
               className="flex-1 border-2 border-gray-200 text-gray-600 rounded-2xl py-4 font-semibold text-base hover:bg-gray-50 transition-colors"
@@ -393,10 +470,17 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
             }`}
           >
             {step === "submit" ? (
-              <>
-                <CheckSquare className="w-5 h-5" />
-                Submit Order
-              </>
+              submitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="w-5 h-5" />
+                  Submit Order
+                </>
+              )
             ) : (
               <>
                 Next
