@@ -1,16 +1,27 @@
-import { useState, useRef } from "react";
-import { X, Upload, MapPin, CheckSquare, ChevronRight, FileText, Check, Loader2, AlertCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import {
+  X, Upload, MapPin, CheckSquare, ChevronRight, FileText,
+  Check, Loader2, AlertCircle, CreditCard, DollarSign,
+} from "lucide-react";
 import { getPageCount } from "@/utils/pageCount";
+import { calculatePrice, calculatePriceCents, formatPrice, getPriceBreakdown } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
 
-type Step = "upload" | "location" | "options" | "submit";
+declare global {
+  interface Window {
+    Square?: any;
+  }
+}
 
-const STEPS: Step[] = ["upload", "location", "options", "submit"];
+type Step = "upload" | "location" | "options" | "payment" | "submit";
+
+const STEPS: Step[] = ["upload", "location", "options", "payment", "submit"];
 
 const STEP_LABELS: Record<Step, string> = {
   upload: "Upload",
   location: "Location",
   options: "Options",
+  payment: "Payment",
   submit: "Submit",
 };
 
@@ -34,7 +45,16 @@ interface FileWithPages {
   loading: boolean;
 }
 
-export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClose: () => void; onOrderCreated?: () => void }) {
+const SQUARE_APP_ID = "sandbox-sq0idb-REPLACE_ME";
+const SQUARE_LOCATION_ID = "REPLACE_ME";
+
+export default function NewPrintOrderModal({
+  onClose,
+  onOrderCreated,
+}: {
+  onClose: () => void;
+  onOrderCreated?: () => void;
+}) {
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<FileWithPages[]>([]);
   const [location, setLocation] = useState("");
@@ -44,16 +64,84 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
     color: "Color",
     sides: "One-sided",
   });
+
+  // Payment state
+  const [squareCard, setSquareCard] = useState<any>(null);
+  const [squareLoading, setSquareLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentToken, setPaymentToken] = useState<string | null>(null);
+  const cardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Submit state
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [uploadProgress, setUploadProgress] = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const stepIndex = STEPS.indexOf(step);
   const totalPages = files.reduce((sum, f) => sum + (f.pages ?? 0), 0);
+  const totalPrice = calculatePrice({ totalPages, copies: options.copies, color: options.color, sides: options.sides });
+  const breakdown = getPriceBreakdown({ totalPages, copies: options.copies, color: options.color, sides: options.sides });
+
+  // Load Square SDK and mount card when on payment step
+  useEffect(() => {
+    if (step !== "payment") return;
+    if (paymentToken) return; // already tokenized
+
+    let card: any = null;
+
+    async function initSquare() {
+      setSquareLoading(true);
+      setPaymentError("");
+
+      // Load Square SDK if not already loaded
+      if (!window.Square) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load Square SDK"));
+          document.head.appendChild(script);
+        });
+      }
+
+      const payments = window.Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
+      card = await payments.card();
+      await card.attach(cardContainerRef.current!);
+      setSquareCard(card);
+      setSquareLoading(false);
+    }
+
+    initSquare().catch((err) => {
+      setPaymentError(err.message ?? "Failed to load payment form");
+      setSquareLoading(false);
+    });
+
+    return () => {
+      card?.destroy?.();
+    };
+  }, [step]);
+
+  async function handleTokenize() {
+    if (!squareCard) return;
+    setPaymentError("");
+    setSquareLoading(true);
+    const result = await squareCard.tokenize();
+    setSquareLoading(false);
+    if (result.status === "OK") {
+      setPaymentToken(result.token);
+    } else {
+      const msg = result.errors?.[0]?.message ?? "Card tokenization failed";
+      setPaymentError(msg);
+    }
+  }
 
   function nextStep() {
+    if (step === "payment" && !paymentToken) {
+      handleTokenize();
+      return;
+    }
     if (step === "submit") {
       handleSubmitOrder();
       return;
@@ -63,6 +151,12 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
   }
 
   function prevStep() {
+    if (step === "submit") {
+      // Go back to payment, reset token so card can be re-entered
+      setPaymentToken(null);
+      setStep("payment");
+      return;
+    }
     const prev = STEPS[stepIndex - 1];
     if (prev) setStep(prev);
   }
@@ -78,13 +172,42 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
       return;
     }
 
+    // 1. Charge via Square edge function
+    setUploadProgress("Processing payment…");
+    const amountCents = calculatePriceCents({ totalPages, copies: options.copies, color: options.color, sides: options.sides });
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const paymentRes = await fetch(
+      "https://studxxqaeilromdjayse.supabase.co/functions/v1/create-square-payment",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          sourceId: paymentToken,
+          amountCents,
+          idempotencyKey: crypto.randomUUID(),
+          note: `Print order — ${files.length} file(s), ${totalPages} pages`,
+        }),
+      }
+    );
+
+    const paymentData = await paymentRes.json();
+    if (!paymentRes.ok) {
+      setSubmitError(paymentData.error ?? "Payment failed. Please try again.");
+      setSubmitting(false);
+      setUploadProgress("");
+      return;
+    }
+
+    // 2. Upload files
     const orderId = crypto.randomUUID();
     const filePaths: string[] = [];
 
-    // Upload each file to Supabase Storage
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      const ext = f.file.name.split(".").pop();
       const path = `${user.id}/${orderId}/${i + 1}_${f.file.name}`;
       setUploadProgress(`Uploading file ${i + 1} of ${files.length}…`);
 
@@ -102,9 +225,8 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
       filePaths.push(path);
     }
 
+    // 3. Save order to DB
     setUploadProgress("Saving order…");
-
-    // Save order to database
     const { error: dbError } = await supabase.from("print_orders").insert({
       id: orderId,
       user_id: user.id,
@@ -147,7 +269,6 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
         )
       );
     }
-
     e.target.value = "";
   }
 
@@ -161,6 +282,7 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
     (step === "upload" && files.length > 0 && !anyLoading) ||
     (step === "location" && location !== "") ||
     step === "options" ||
+    (step === "payment" && (!!squareCard || !!paymentToken) && !squareLoading) ||
     (step === "submit" && !submitting);
 
   if (submitted) {
@@ -175,8 +297,11 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Order Submitted!</h2>
           <p className="text-gray-500 text-center text-sm">
-            Your print order has been submitted successfully. You'll be notified when it's ready.
+            Your payment was successful and your print order has been submitted. You'll be notified when it's ready.
           </p>
+          <div className="bg-green-50 border border-green-200 rounded-2xl px-5 py-3 w-full text-center">
+            <p className="text-green-700 font-bold text-lg">{formatPrice(totalPrice)} charged</p>
+          </div>
           <button
             onClick={onClose}
             className="w-full bg-blue-500 text-white rounded-2xl py-4 font-semibold text-base mt-2 hover:bg-blue-600 transition-colors"
@@ -198,7 +323,10 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-xl font-bold text-gray-900">New Print Order</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+          >
             <X className="w-4 h-4 text-gray-600" />
           </button>
         </div>
@@ -225,6 +353,7 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 pb-5">
+          {/* ── UPLOAD ── */}
           {step === "upload" && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-gray-800">Upload Your Files</h3>
@@ -254,8 +383,7 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-700 truncate font-medium">{f.file.name}</p>
                         <p className="text-xs text-gray-400">
-                          {(f.file.size / 1024).toFixed(0)} KB
-                          {" · "}
+                          {(f.file.size / 1024).toFixed(0)} KB{" · "}
                           {f.loading ? (
                             <span className="inline-flex items-center gap-1 text-blue-400">
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -276,7 +404,6 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
                       </button>
                     </div>
                   ))}
-
                   {!anyLoading && totalPages > 0 && (
                     <div className="flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
                       <span className="text-sm font-semibold text-blue-700">Total pages</span>
@@ -288,6 +415,7 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
             </div>
           )}
 
+          {/* ── LOCATION ── */}
           {step === "location" && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-gray-800">Choose a Location</h3>
@@ -297,9 +425,7 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
                     key={loc}
                     onClick={() => setLocation(loc)}
                     className={`w-full flex items-center gap-3 rounded-2xl px-4 py-4 border-2 transition-all text-left ${
-                      location === loc
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white hover:border-gray-300"
+                      location === loc ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"
                     }`}
                   >
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${location === loc ? "bg-blue-100" : "bg-gray-100"}`}>
@@ -313,86 +439,130 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
             </div>
           )}
 
+          {/* ── OPTIONS ── */}
           {step === "options" && (
             <div className="space-y-5">
               <h3 className="text-lg font-bold text-gray-800">Print Options</h3>
 
-              {/* Copies */}
               <div>
                 <label className="text-sm font-semibold text-gray-600 mb-2 block">Copies</label>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setOptions((o) => ({ ...o, copies: Math.max(1, o.copies - 1) }))}
                     className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
-                  >
-                    −
-                  </button>
+                  >−</button>
                   <span className="text-2xl font-bold text-gray-900 w-8 text-center">{options.copies}</span>
                   <button
                     onClick={() => setOptions((o) => ({ ...o, copies: o.copies + 1 }))}
                     className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-xl font-bold text-white hover:bg-blue-600 transition-colors"
-                  >
-                    +
-                  </button>
+                  >+</button>
                 </div>
               </div>
 
-              {/* Paper Size */}
               <div>
                 <label className="text-sm font-semibold text-gray-600 mb-2 block">Paper Size</label>
                 <div className="grid grid-cols-2 gap-2">
                   {['Letter (8.5" x 11")', 'Legal (8.5" x 14")', 'A4 (8.3" x 11.7")', 'Tabloid (11" x 17")'].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setOptions((o) => ({ ...o, size: s }))}
-                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${
-                        options.size === s ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
+                    <button key={s} onClick={() => setOptions((o) => ({ ...o, size: s }))}
+                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${options.size === s ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
                       {s}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Color */}
               <div>
                 <label className="text-sm font-semibold text-gray-600 mb-2 block">Color</label>
                 <div className="grid grid-cols-2 gap-2">
                   {["Color", "Black & White"].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setOptions((o) => ({ ...o, color: c }))}
-                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${
-                        options.color === c ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
+                    <button key={c} onClick={() => setOptions((o) => ({ ...o, color: c }))}
+                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${options.color === c ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
                       {c}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Sides */}
               <div>
                 <label className="text-sm font-semibold text-gray-600 mb-2 block">Sides</label>
                 <div className="grid grid-cols-2 gap-2">
                   {["One-sided", "Two-sided"].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setOptions((o) => ({ ...o, sides: s }))}
-                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${
-                        options.sides === s ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
+                    <button key={s} onClick={() => setOptions((o) => ({ ...o, sides: s }))}
+                      className={`rounded-xl px-3 py-3 text-sm font-medium border-2 transition-all ${options.sides === s ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
                       {s}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Price preview */}
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-4 space-y-2">
+                <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-1">Estimated Cost</p>
+                <div className="flex justify-between text-sm text-blue-700">
+                  <span>{totalPages} pages × {options.copies} {options.copies === 1 ? "copy" : "copies"}</span>
+                  <span>{formatPrice(breakdown.pricePerPage)}/page</span>
+                </div>
+                <div className="flex justify-between font-bold text-blue-800 text-base pt-1 border-t border-blue-200">
+                  <span>Total</span>
+                  <span>{formatPrice(totalPrice)}</span>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* ── PAYMENT ── */}
+          {step === "payment" && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-gray-800">Payment</h3>
+
+              {/* Order total */}
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-blue-500" />
+                  <span className="text-sm font-semibold text-blue-700">Amount due</span>
+                </div>
+                <span className="text-xl font-extrabold text-blue-800">{formatPrice(totalPrice)}</span>
+              </div>
+
+              {paymentToken ? (
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-4">
+                  <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-green-700 font-semibold text-sm">Card saved</p>
+                    <p className="text-green-600 text-xs">Your card details are ready. Click Next to review and submit.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {squareLoading && !squareCard ? (
+                    <div className="flex items-center justify-center py-10 gap-3">
+                      <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                      <span className="text-gray-500 text-sm">Loading payment form…</span>
+                    </div>
+                  ) : null}
+
+                  {/* Square card container */}
+                  <div
+                    ref={cardContainerRef}
+                    className={`min-h-[100px] rounded-2xl border-2 border-gray-200 overflow-hidden bg-white px-2 py-2 ${squareLoading && !squareCard ? "hidden" : ""}`}
+                  />
+
+                  {paymentError && (
+                    <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-red-600 text-sm">{paymentError}</p>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400 text-center">
+                    🔒 Payments are securely processed by Square
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── SUBMIT ── */}
           {step === "submit" && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-gray-800">Review & Submit</h3>
@@ -430,6 +600,11 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">Sides</span>
                   <span className="text-gray-800 font-semibold">{options.sides}</span>
+                </div>
+                <div className="h-px bg-gray-200" />
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Total</span>
+                  <span className="text-blue-600 font-extrabold text-base">{formatPrice(totalPrice)}</span>
                 </div>
               </div>
 
@@ -469,23 +644,20 @@ export default function NewPrintOrderModal({ onClose, onOrderCreated }: { onClos
                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {step === "submit" ? (
-              submitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Uploading…
-                </>
+            {step === "payment" && !paymentToken ? (
+              squareLoading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Processing…</>
               ) : (
-                <>
-                  <CheckSquare className="w-5 h-5" />
-                  Submit Order
-                </>
+                <><CreditCard className="w-5 h-5" /> Save Card</>
+              )
+            ) : step === "submit" ? (
+              submitting ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</>
+              ) : (
+                <><CheckSquare className="w-5 h-5" /> Pay & Submit</>
               )
             ) : (
-              <>
-                Next
-                <ChevronRight className="w-5 h-5" />
-              </>
+              <>Next <ChevronRight className="w-5 h-5" /></>
             )}
           </button>
         </div>
