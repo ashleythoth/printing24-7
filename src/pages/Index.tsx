@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut } from "lucide-react";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
+import { supabase } from "@/integrations/supabase/client";
 
 const orders = [
   {
@@ -65,19 +66,59 @@ function StepIcon({ icon, color, iconColor }: { icon: string; color: string; ico
 
 export default function Index() {
   const [showModal, setShowModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [userName, setUserName] = useState("there");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const firstName = user.user_metadata?.first_name;
+        if (firstName) {
+          setUserName(firstName);
+        } else {
+          const emailName = user.email?.split("@")[0];
+          if (emailName) setUserName(emailName);
+        }
+      }
+    });
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
       {/* Header */}
       <div className="px-5 pt-10 pb-4 bg-gray-100">
-        <p className="text-gray-500 text-sm font-medium mb-1">Hello, Test</p>
+        <p className="text-gray-500 text-sm font-medium mb-1">Hello, {userName}</p>
         <div className="flex items-center justify-between">
           <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Printing 24/7</h1>
-          <button className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center hover:bg-gray-50 transition-colors">
-            <Settings className="w-5 h-5 text-gray-600" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowSettings((v) => !v)}
+              className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center hover:bg-gray-50 transition-colors"
+            >
+              <Settings className="w-5 h-5 text-gray-600" />
+            </button>
+            {showSettings && (
+              <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 w-44">
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {showSettings && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowSettings(false)} />
+      )}
 
       <div className="px-4 space-y-5 pb-10">
         {/* New Print Order Button */}
