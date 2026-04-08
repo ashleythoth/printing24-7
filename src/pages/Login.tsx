@@ -28,31 +28,11 @@ export default function Login() {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6">
       {/* Logo */}
       <div className="mb-6 flex flex-col items-center">
-        <div className="w-36 h-36 rounded-[28px] overflow-hidden shadow-xl mb-6">
-          <div className="w-full h-full bg-black flex flex-col items-center justify-center relative">
-            {/* Logo recreation */}
-            <div className="absolute inset-0 bg-black" />
-            <div className="relative z-10 flex flex-col items-center justify-center w-full h-full px-2">
-              <span
-                className="text-yellow-400 font-bold text-lg leading-tight"
-                style={{ fontFamily: "cursive", textShadow: "0 0 8px rgba(255,200,0,0.5)" }}
-              >
-                Solutions
-              </span>
-              <span className="text-blue-500 font-extrabold text-2xl tracking-widest leading-tight">
-                PRINT
-              </span>
-              <div className="w-full bg-blue-600 rounded-lg px-2 py-1 my-1 flex flex-col items-center">
-                <span className="text-yellow-400 font-bold text-xs">Printing</span>
-                <span className="text-yellow-400 font-extrabold text-3xl leading-none">24/7</span>
-              </div>
-              <span className="text-blue-500 font-extrabold text-2xl tracking-widest leading-tight">
-                PHOTO
-              </span>
-              <span className="text-gray-400 text-[8px] tracking-wider mt-0.5">Global Printing Network</span>
-            </div>
-          </div>
-        </div>
+        <img
+          src="/src/assets/logo.png"
+          alt="Printing 24/7 Logo"
+          className="w-36 h-36 rounded-[28px] object-cover shadow-xl mb-6"
+        />
 
         <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Printing 24/7</h1>
         <p className="text-gray-500 text-base mt-1">Sign in to continue</p>
