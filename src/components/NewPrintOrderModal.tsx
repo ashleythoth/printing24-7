@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { X, Upload, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, FileText, Check } from "lucide-react";
+import { X, Upload, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, FileText, Check, Loader2 } from "lucide-react";
+import { getPageCount } from "@/utils/pageCount";
 
 type Step = "upload" | "location" | "options" | "submit" | "done";
 
@@ -27,9 +28,15 @@ interface OrderOptions {
   sides: string;
 }
 
+interface FileWithPages {
+  file: File;
+  pages: number | null;
+  loading: boolean;
+}
+
 export default function NewPrintOrderModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("upload");
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<FileWithPages[]>([]);
   const [location, setLocation] = useState("");
   const [options, setOptions] = useState<OrderOptions>({
     copies: 1,
@@ -41,6 +48,8 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stepIndex = STEPS.indexOf(step);
+
+  const totalPages = files.reduce((sum, f) => sum + (f.pages ?? 0), 0);
 
   function nextStep() {
     if (step === "submit") {
@@ -56,14 +65,36 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
     if (prev) setStep(prev);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files));
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return;
+    const newFiles: FileWithPages[] = Array.from(e.target.files).map((file) => ({
+      file,
+      pages: null,
+      loading: true,
+    }));
+    setFiles((prev) => [...prev, ...newFiles]);
+
+    for (const fileWithPages of newFiles) {
+      const pages = await getPageCount(fileWithPages.file);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.file === fileWithPages.file ? { ...f, pages, loading: false } : f
+        )
+      );
     }
+
+    // Reset input so same file can be re-added
+    e.target.value = "";
   }
 
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const anyLoading = files.some((f) => f.loading);
+
   const canProceed =
-    (step === "upload" && files.length > 0) ||
+    (step === "upload" && files.length > 0 && !anyLoading) ||
     (step === "location" && location !== "") ||
     step === "options" ||
     step === "submit";
@@ -156,10 +187,39 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
                   {files.map((f, i) => (
                     <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
                       <FileText className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 truncate flex-1">{f.name}</span>
-                      <span className="text-xs text-gray-400">{(f.size / 1024).toFixed(0)} KB</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate font-medium">{f.file.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {(f.file.size / 1024).toFixed(0)} KB
+                          {" · "}
+                          {f.loading ? (
+                            <span className="inline-flex items-center gap-1 text-blue-400">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Detecting pages…
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 font-medium">
+                              {f.pages} {f.pages === 1 ? "page" : "pages"}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeFile(i)}
+                        className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center hover:bg-red-100 hover:text-red-500 transition-colors flex-shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
                   ))}
+
+                  {/* Total pages summary */}
+                  {!anyLoading && totalPages > 0 && (
+                    <div className="flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
+                      <span className="text-sm font-semibold text-blue-700">Total pages</span>
+                      <span className="text-sm font-bold text-blue-700">{totalPages}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -277,6 +337,11 @@ export default function NewPrintOrderModal({ onClose }: { onClose: () => void })
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">Files</span>
                   <span className="text-gray-800 font-semibold">{files.length} {files.length === 1 ? "file" : "files"}</span>
+                </div>
+                <div className="h-px bg-gray-200" />
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Total Pages</span>
+                  <span className="text-gray-800 font-semibold">{totalPages}</span>
                 </div>
                 <div className="h-px bg-gray-200" />
                 <div className="flex justify-between text-sm">
