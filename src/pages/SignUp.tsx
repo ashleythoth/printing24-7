@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function SignUp() {
@@ -11,6 +11,8 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
@@ -33,22 +35,81 @@ export default function SignUp() {
     }
   }
 
+  async function handleResend() {
+    setResending(true);
+    setResent(false);
+    await supabase.auth.resend({ type: "signup", email });
+    setResending(false);
+    setResent(true);
+    setTimeout(() => setResent(false), 5000);
+  }
+
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
-          <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm">
+          {/* Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
+              <Mail className="w-12 h-12 text-blue-500" />
+            </div>
+          </div>
+
+          {/* Heading */}
+          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-2">Check your email</h2>
+          <p className="text-gray-500 text-center text-base mb-6">
+            We sent a confirmation link to{" "}
+            <span className="font-semibold text-gray-800">{email}</span>
+          </p>
+
+          {/* Steps card */}
+          <div className="bg-white rounded-2xl shadow-sm p-5 mb-5 space-y-4">
+            {[
+              { num: "1", text: "Open the email from Printing 24/7" },
+              { num: "2", text: 'Click the "Confirm your email" button' },
+              { num: "3", text: "Come back here and sign in" },
+            ].map((step) => (
+              <div key={step.num} className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-sm font-bold">{step.num}</span>
+                </div>
+                <p className="text-gray-700 text-sm font-medium">{step.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tip */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 mb-6 flex gap-3 items-start">
+            <span className="text-yellow-500 text-lg leading-none mt-0.5">💡</span>
+            <p className="text-yellow-800 text-sm">
+              Can't find it? Check your <span className="font-semibold">spam or junk</span> folder.
+            </p>
+          </div>
+
+          {/* Resend */}
+          {resent ? (
+            <div className="w-full bg-green-50 border border-green-200 rounded-2xl py-4 text-center text-green-600 font-semibold text-sm mb-4">
+              ✓ Confirmation email resent!
+            </div>
+          ) : (
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              className="w-full flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 rounded-2xl py-4 font-semibold text-base hover:bg-gray-50 transition-colors disabled:opacity-50 mb-4"
+            >
+              <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
+              {resending ? "Resending…" : "Resend confirmation email"}
+            </button>
+          )}
+
+          {/* Go to sign in */}
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full bg-blue-500 text-white rounded-2xl py-5 text-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-600 transition-colors"
+          >
+            Go to Sign In
+          </button>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Created!</h2>
-        <p className="text-gray-500 text-sm mb-6">Check your email to confirm your account, then sign in.</p>
-        <button
-          onClick={() => navigate("/login")}
-          className="w-full max-w-sm bg-blue-500 text-white rounded-2xl py-5 text-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-600 transition-colors"
-        >
-          Go to Sign In
-        </button>
       </div>
     );
   }
