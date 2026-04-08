@@ -45,7 +45,7 @@ interface FileWithPages {
   loading: boolean;
 }
 
-const SQUARE_APP_ID = "sandbox-sq0idb-REPLACE_ME";
+const SQUARE_APP_ID = "sandbox-sq0idb-O3bOm8quui5n90KPy3YlhQ";
 const SQUARE_LOCATION_ID = "REPLACE_ME";
 
 export default function NewPrintOrderModal({
