@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import {
   X, Upload, MapPin, CheckSquare, ChevronRight, FileText,
-  Check, Loader2, AlertCircle, CreditCard, DollarSign,
+  Check, Loader2, AlertCircle, CreditCard, DollarSign, Phone, Mail,
 } from "lucide-react";
 import { getPageCount } from "@/utils/pageCount";
 import { calculatePrice, calculatePriceCents, formatPrice, getPriceBreakdown } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
+import type { PrintShop } from "@/integrations/supabase/types";
 
 declare global {
   interface Window {
@@ -25,12 +26,6 @@ const STEP_LABELS: Record<Step, string> = {
   submit: "Submit",
 };
 
-const LOCATIONS = [
-  "Staples Print & Marketing — 123 Main St",
-  "Staples Print & Marketing — 456 Oak Ave",
-  "FedEx Office — 789 Elm Blvd",
-  "UPS Store — 321 Pine Rd",
-];
 
 interface OrderOptions {
   copies: number;
@@ -65,6 +60,11 @@ export default function NewPrintOrderModal({
     sides: "One-sided",
   });
 
+  // Shops
+  const [shops, setShops] = useState<PrintShop[]>([]);
+  const [shopsLoading, setShopsLoading] = useState(false);
+  const [selectedShop, setSelectedShop] = useState<PrintShop | null>(null);
+
   // Payment state
   const [squareCard, setSquareCard] = useState<any>(null);
   const [squareLoading, setSquareLoading] = useState(false);
@@ -83,6 +83,20 @@ export default function NewPrintOrderModal({
   const totalPages = files.reduce((sum, f) => sum + (f.pages ?? 0), 0);
   const totalPrice = calculatePrice({ totalPages, copies: options.copies, color: options.color, sides: options.sides });
   const breakdown = getPriceBreakdown({ totalPages, copies: options.copies, color: options.color, sides: options.sides });
+
+  // Load print shops
+  useEffect(() => {
+    setShopsLoading(true);
+    supabase
+      .from("print_shops")
+      .select("*")
+      .eq("status", "active")
+      .order("name")
+      .then(({ data }) => {
+        setShops((data as PrintShop[]) ?? []);
+        setShopsLoading(false);
+      });
+  }, []);
 
   // Load Square SDK and mount card when on payment step
   useEffect(() => {
@@ -230,7 +244,7 @@ export default function NewPrintOrderModal({
     const { error: dbError } = await supabase.from("print_orders").insert({
       id: orderId,
       user_id: user.id,
-      location,
+      shop_id: selectedShop!.id,
       copies: options.copies,
       size: options.size,
       color: options.color,
@@ -280,7 +294,7 @@ export default function NewPrintOrderModal({
 
   const canProceed =
     (step === "upload" && files.length > 0 && !anyLoading) ||
-    (step === "location" && location !== "") ||
+    (step === "location" && selectedShop !== null) ||
     step === "options" ||
     (step === "payment" && (!!squareCard || !!paymentToken) && !squareLoading) ||
     (step === "submit" && !submitting);
@@ -419,23 +433,52 @@ export default function NewPrintOrderModal({
           {step === "location" && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-gray-800">Choose a Location</h3>
-              <div className="space-y-2">
-                {LOCATIONS.map((loc) => (
-                  <button
-                    key={loc}
-                    onClick={() => setLocation(loc)}
-                    className={`w-full flex items-center gap-3 rounded-2xl px-4 py-4 border-2 transition-all text-left ${
-                      location === loc ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${location === loc ? "bg-blue-100" : "bg-gray-100"}`}>
-                      <MapPin className={`w-5 h-5 ${location === loc ? "text-blue-500" : "text-gray-400"}`} />
-                    </div>
-                    <span className={`text-sm font-medium ${location === loc ? "text-blue-700" : "text-gray-700"}`}>{loc}</span>
-                    {location === loc && <Check className="w-5 h-5 text-blue-500 ml-auto flex-shrink-0" />}
-                  </button>
-                ))}
-              </div>
+              {shopsLoading ? (
+                <div className="flex items-center justify-center py-10 gap-3">
+                  <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                  <span className="text-gray-500 text-sm">Loading locations…</span>
+                </div>
+              ) : shops.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">No print shops available.</div>
+              ) : (
+                <div className="space-y-3">
+                  {shops.map((shop) => {
+                    const selected = selectedShop?.id === shop.id;
+                    return (
+                      <button
+                        key={shop.id}
+                        onClick={() => setSelectedShop(shop)}
+                        className={`w-full flex items-start gap-3 rounded-2xl px-4 py-4 border-2 transition-all text-left ${
+                          selected ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
+                      >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${selected ? "bg-blue-100" : "bg-gray-100"}`}>
+                          <MapPin className={`w-5 h-5 ${selected ? "text-blue-500" : "text-gray-400"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold ${selected ? "text-blue-700" : "text-gray-800"}`}>{shop.name}</p>
+                          {shop.address && (
+                            <p className="text-xs text-gray-500 mt-0.5">{shop.address}</p>
+                          )}
+                          <div className="flex flex-wrap gap-3 mt-1.5">
+                            {shop.phone && (
+                              <span className="flex items-center gap-1 text-xs text-gray-400">
+                                <Phone className="w-3 h-3" />{shop.phone}
+                              </span>
+                            )}
+                            {shop.email && (
+                              <span className="flex items-center gap-1 text-xs text-gray-400">
+                                <Mail className="w-3 h-3" />{shop.email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {selected && <Check className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -579,7 +622,7 @@ export default function NewPrintOrderModal({
                 <div className="h-px bg-gray-200" />
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">Location</span>
-                  <span className="text-gray-800 font-semibold text-right max-w-[60%]">{location}</span>
+                  <span className="text-gray-800 font-semibold text-right max-w-[60%]">{selectedShop?.name}</span>
                 </div>
                 <div className="h-px bg-gray-200" />
                 <div className="flex justify-between text-sm">

@@ -72,7 +72,7 @@ export default function Index() {
     setLoadingOrders(true);
     const { data } = await supabase
       .from("print_orders")
-      .select("*")
+      .select("*, print_shops(name, address)")
       .order("created_at", { ascending: false });
     setOrders((data as PrintOrder[]) ?? []);
     setLoadingOrders(false);
@@ -182,7 +182,7 @@ export default function Index() {
                       {order.status}
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1">{order.location}</h3>
+                  <h3 className="text-base font-bold text-gray-900 mb-1">{order.print_shops?.name ?? "Unknown Shop"}</h3>
                   <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
                     <span>{order.copies} {order.copies === 1 ? "copy" : "copies"}</span>
                     <span>•</span>
