@@ -72,7 +72,7 @@ export default function Index() {
     setLoadingOrders(true);
     const { data } = await supabase
       .from("print_orders")
-      .select("*, print_shops(name, address)")
+      .select("*, print_shops(name, address), shop_products(products(name, print_type))")
       .order("created_at", { ascending: false });
     setOrders((data as PrintOrder[]) ?? []);
     setLoadingOrders(false);
@@ -184,11 +184,11 @@ export default function Index() {
                   </div>
                   <h3 className="text-base font-bold text-gray-900 mb-1">{order.print_shops?.name ?? "Unknown Shop"}</h3>
                   <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
+                    <span>{(order as any).shop_products?.products?.name ?? order.color_mode}</span>
+                    <span>•</span>
                     <span>{order.copies} {order.copies === 1 ? "copy" : "copies"}</span>
                     <span>•</span>
-                    <span>{order.size}</span>
-                    <span>•</span>
-                    <span>{order.color}</span>
+                    <span>{order.total_quantity} {(order as any).shop_products?.products?.print_type === "photo" ? "prints" : "pages"}</span>
                     <span className="ml-auto text-gray-400 text-xs">{formatDate(order.created_at)}</span>
                   </div>
                 </div>
