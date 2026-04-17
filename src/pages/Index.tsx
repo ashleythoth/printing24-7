@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut } from "lucide-react";
+import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrintOrder } from "@/integrations/supabase/types";
@@ -48,6 +49,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function Index() {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState("there");
@@ -105,10 +107,17 @@ export default function Index() {
               <Settings className="w-5 h-5 text-gray-600" />
             </button>
             {showSettings && (
-              <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 w-44">
+              <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 w-52">
+                <button
+                  onClick={() => { setShowSettings(false); navigate("/account"); }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                >
+                  <UserCircle className="w-4 h-4 text-blue-500" />
+                  Account Settings
+                </button>
                 <button
                   onClick={handleSignOut}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out

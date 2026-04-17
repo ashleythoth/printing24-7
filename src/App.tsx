@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
+import AccountSettings from "./pages/AccountSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -76,6 +77,14 @@ const App = () => {
               element={
                 <ProtectedRoute session={session}>
                   <Index />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute session={session}>
+                  <AccountSettings />
                 </ProtectedRoute>
               }
             />
