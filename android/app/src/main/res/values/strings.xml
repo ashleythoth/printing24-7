@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">printing24-7</string>
+    <string name="title_activity_main">printing24-7</string>
+    <string name="package_name">com.example.printing247</string>
+    <string name="custom_url_scheme">com.example.printing247</string>
+</resources>
