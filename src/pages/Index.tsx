@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle } from "lucide-react";
+import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +29,7 @@ function formatDate(dateStr: string) {
 
 export default function Index() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState("there");
@@ -83,6 +83,24 @@ export default function Index() {
             </button>
             {showSettings && (
               <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 w-52">
+                {/* Language toggle */}
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
+                  <Globe className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  <div className="flex gap-1 flex-1">
+                    <button
+                      onClick={() => setLanguage("en")}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${language === "en" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      onClick={() => setLanguage("es")}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${language === "es" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      ES
+                    </button>
+                  </div>
+                </div>
                 <button
                   onClick={() => { setShowSettings(false); navigate("/account"); }}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100"
