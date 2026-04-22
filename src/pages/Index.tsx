@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe } from "lucide-react";
+import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe, Navigation } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -189,6 +189,17 @@ export default function Index() {
                     <span>{order.total_quantity} {(order as any).shop_products?.products?.print_type === "photo" ? t("prints") : t("pages")}</span>
                     <span className="ml-auto text-gray-400 text-xs">{formatDate(order.created_at)}</span>
                   </div>
+                  {order.print_shops?.address && (
+                    <a
+                      href={`https://maps.google.com/?q=${encodeURIComponent(order.print_shops.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      {order.print_shops.address}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
