@@ -4,13 +4,7 @@ import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrintOrder } from "@/integrations/supabase/types";
-
-const steps = [
-  { label: "Upload", icon: "upload", color: "bg-blue-100", iconColor: "text-blue-500" },
-  { label: "Location", icon: "location", color: "bg-green-100", iconColor: "text-green-500" },
-  { label: "Options", icon: "options", color: "bg-orange-100", iconColor: "text-orange-400" },
-  { label: "Submit", icon: "submit", color: "bg-purple-100", iconColor: "text-purple-500" },
-];
+import { useLanguage } from "@/i18n/LanguageContext";
 
 function StepIcon({ icon, color, iconColor }: { icon: string; color: string; iconColor: string }) {
   const cls = `w-14 h-14 rounded-full ${color} flex items-center justify-center`;
@@ -22,24 +16,9 @@ function StepIcon({ icon, color, iconColor }: { icon: string; color: string; ico
         </svg>
       </div>
     );
-  if (icon === "location")
-    return (
-      <div className={cls}>
-        <MapPin className={`w-7 h-7 ${iconColor}`} />
-      </div>
-    );
-  if (icon === "options")
-    return (
-      <div className={cls}>
-        <SlidersHorizontal className={`w-7 h-7 ${iconColor}`} />
-      </div>
-    );
-  if (icon === "submit")
-    return (
-      <div className={cls}>
-        <CheckSquare className={`w-7 h-7 ${iconColor}`} />
-      </div>
-    );
+  if (icon === "location") return <div className={cls}><MapPin className={`w-7 h-7 ${iconColor}`} /></div>;
+  if (icon === "options") return <div className={cls}><SlidersHorizontal className={`w-7 h-7 ${iconColor}`} /></div>;
+  if (icon === "submit") return <div className={cls}><CheckSquare className={`w-7 h-7 ${iconColor}`} /></div>;
   return null;
 }
 
@@ -50,22 +29,26 @@ function formatDate(dateStr: string) {
 
 export default function Index() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState("there");
   const [orders, setOrders] = useState<PrintOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
+  const steps = [
+    { label: t("upload"), icon: "upload", color: "bg-blue-100", iconColor: "text-blue-500" },
+    { label: t("location"), icon: "location", color: "bg-green-100", iconColor: "text-green-500" },
+    { label: t("options"), icon: "options", color: "bg-orange-100", iconColor: "text-orange-400" },
+    { label: t("submit"), icon: "submit", color: "bg-purple-100", iconColor: "text-purple-500" },
+  ];
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         const firstName = user.user_metadata?.first_name;
-        if (firstName) {
-          setUserName(firstName);
-        } else {
-          const emailName = user.email?.split("@")[0];
-          if (emailName) setUserName(emailName);
-        }
+        if (firstName) { setUserName(firstName); }
+        else { const emailName = user.email?.split("@")[0]; if (emailName) setUserName(emailName); }
       }
     });
   }, []);
@@ -80,25 +63,17 @@ export default function Index() {
     setLoadingOrders(false);
   }, []);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-  }
-
-  function handleOrderCreated() {
-    fetchOrders();
-  }
+  async function handleSignOut() { await supabase.auth.signOut(); }
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
       {/* Header */}
       <div className="px-5 pt-10 pb-4 bg-gray-100">
-        <p className="text-gray-500 text-sm font-medium mb-1">Hello, {userName}</p>
+        <p className="text-gray-500 text-sm font-medium mb-1">{t("hello")}, {userName}</p>
         <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Printing 24/7</h1>
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">{t("appName")}</h1>
           <div className="relative">
             <button
               onClick={() => setShowSettings((v) => !v)}
@@ -113,14 +88,14 @@ export default function Index() {
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   <UserCircle className="w-4 h-4 text-blue-500" />
-                  Account Settings
+                  {t("accountSettings")}
                 </button>
                 <button
                   onClick={handleSignOut}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
-                  Sign Out
+                  {t("signOut")}
                 </button>
               </div>
             )}
@@ -128,9 +103,7 @@ export default function Index() {
         </div>
       </div>
 
-      {showSettings && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowSettings(false)} />
-      )}
+      {showSettings && <div className="fixed inset-0 z-40" onClick={() => setShowSettings(false)} />}
 
       <div className="px-4 space-y-5 pb-10">
         {/* New Print Order Button */}
@@ -141,12 +114,12 @@ export default function Index() {
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
             <Plus className="w-5 h-5 text-white" strokeWidth={3} />
           </div>
-          <span className="text-xl font-semibold">New Print Order</span>
+          <span className="text-xl font-semibold">{t("newPrintOrder")}</span>
         </button>
 
         {/* How It Works */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">How It Works</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">{t("howItWorks")}</h2>
           <div className="flex items-center justify-between">
             {steps.map((step, i) => (
               <div key={step.label} className="flex items-center">
@@ -154,9 +127,7 @@ export default function Index() {
                   <StepIcon icon={step.icon} color={step.color} iconColor={step.iconColor} />
                   <span className="text-xs font-medium text-gray-600">{step.label}</span>
                 </div>
-                {i < steps.length - 1 && (
-                  <ChevronRight className="w-4 h-4 text-gray-300 mx-1 mb-5 flex-shrink-0" />
-                )}
+                {i < steps.length - 1 && <ChevronRight className="w-4 h-4 text-gray-300 mx-1 mb-5 flex-shrink-0" />}
               </div>
             ))}
           </div>
@@ -164,7 +135,7 @@ export default function Index() {
 
         {/* Your Orders */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Your Orders</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-3">{t("yourOrders")}</h2>
           {loadingOrders ? (
             <div className="flex items-center justify-center py-10">
               <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -172,8 +143,8 @@ export default function Index() {
           ) : orders.length === 0 ? (
             <div className="bg-white rounded-2xl p-8 shadow-sm flex flex-col items-center gap-2 text-center">
               <FileText className="w-10 h-10 text-gray-300" />
-              <p className="text-gray-500 font-medium">No orders yet</p>
-              <p className="text-gray-400 text-sm">Tap "New Print Order" to get started</p>
+              <p className="text-gray-500 font-medium">{t("noOrdersYet")}</p>
+              <p className="text-gray-400 text-sm">{t("noOrdersHint")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -183,7 +154,7 @@ export default function Index() {
                     <div className="flex items-center gap-2">
                       <FileText className="w-5 h-5 text-gray-400" />
                       <span className="text-sm text-gray-500 font-medium">
-                        {order.file_paths.length} {order.file_paths.length === 1 ? "file" : "files"}
+                        {order.file_paths.length} {order.file_paths.length === 1 ? t("file") : t("files")}
                       </span>
                     </div>
                     <span className="flex items-center gap-1.5 bg-orange-50 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-200">
@@ -195,9 +166,9 @@ export default function Index() {
                   <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
                     <span>{(order as any).shop_products?.products?.name ?? order.color_mode}</span>
                     <span>•</span>
-                    <span>{order.copies} {order.copies === 1 ? "copy" : "copies"}</span>
+                    <span>{order.copies} {order.copies === 1 ? t("copy") : t("copies")}</span>
                     <span>•</span>
-                    <span>{order.total_quantity} {(order as any).shop_products?.products?.print_type === "photo" ? "prints" : "pages"}</span>
+                    <span>{order.total_quantity} {(order as any).shop_products?.products?.print_type === "photo" ? t("prints") : t("pages")}</span>
                     <span className="ml-auto text-gray-400 text-xs">{formatDate(order.created_at)}</span>
                   </div>
                 </div>
@@ -208,10 +179,7 @@ export default function Index() {
       </div>
 
       {showModal && (
-        <NewPrintOrderModal
-          onClose={() => setShowModal(false)}
-          onOrderCreated={handleOrderCreated}
-        />
+        <NewPrintOrderModal onClose={() => setShowModal(false)} onOrderCreated={fetchOrders} />
       )}
     </div>
   );

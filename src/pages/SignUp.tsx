@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, User, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,16 +25,10 @@ export default function SignUp() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { first_name: firstName, last_name: lastName },
-      },
+      options: { data: { first_name: firstName, last_name: lastName } },
     });
     setLoading(false);
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
-    }
+    if (error) { setError(error.message); } else { setSuccess(true); }
   }
 
   async function handleResend() {
@@ -48,26 +44,20 @@ export default function SignUp() {
     return (
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm">
-          {/* Icon */}
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
               <Mail className="w-12 h-12 text-blue-500" />
             </div>
           </div>
-
-          {/* Heading */}
-          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-2">Check your email</h2>
+          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-2">{t("checkYourEmail")}</h2>
           <p className="text-gray-500 text-center text-base mb-6">
-            We sent a confirmation link to{" "}
-            <span className="font-semibold text-gray-800">{email}</span>
+            {t("weSentLink")}{" "}<span className="font-semibold text-gray-800">{email}</span>
           </p>
-
-          {/* Steps card */}
           <div className="bg-white rounded-2xl shadow-sm p-5 mb-5 space-y-4">
             {[
-              { num: "1", text: "Open the email from Printing 24/7" },
-              { num: "2", text: 'Click the "Confirm your email" button' },
-              { num: "3", text: "Come back here and sign in" },
+              { num: "1", text: t("step1Email") },
+              { num: "2", text: t("step2Email") },
+              { num: "3", text: t("step3Email") },
             ].map((step) => (
               <div key={step.num} className="flex items-center gap-4">
                 <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
@@ -77,19 +67,15 @@ export default function SignUp() {
               </div>
             ))}
           </div>
-
-          {/* Tip */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 mb-6 flex gap-3 items-start">
             <span className="text-yellow-500 text-lg leading-none mt-0.5">💡</span>
             <p className="text-yellow-800 text-sm">
-              Can't find it? Check your <span className="font-semibold">spam or junk</span> folder.
+              {t("checkSpam")} <span className="font-semibold">{t("spamFolder")}</span> {t("spamFolderEnd")}
             </p>
           </div>
-
-          {/* Resend */}
           {resent ? (
             <div className="w-full bg-green-50 border border-green-200 rounded-2xl py-4 text-center text-green-600 font-semibold text-sm mb-4">
-              ✓ Confirmation email resent!
+              {t("emailResent")}
             </div>
           ) : (
             <button
@@ -98,16 +84,14 @@ export default function SignUp() {
               className="w-full flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-600 rounded-2xl py-4 font-semibold text-base hover:bg-gray-50 transition-colors disabled:opacity-50 mb-4"
             >
               <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
-              {resending ? "Resending…" : "Resend confirmation email"}
+              {resending ? t("resending") : t("resendEmail")}
             </button>
           )}
-
-          {/* Go to sign in */}
           <button
             onClick={() => navigate("/login")}
             className="w-full bg-blue-500 text-white rounded-2xl py-5 text-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-600 transition-colors"
           >
-            Go to Sign In
+            {t("goToSignIn")}
           </button>
         </div>
       </div>
@@ -116,103 +100,41 @@ export default function SignUp() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6">
-      {/* Logo */}
       <div className="mb-6 flex flex-col items-center">
-        <img
-          src="/src/assets/logo.png"
-          alt="Printing 24/7 Logo"
-          className="w-28 h-28 rounded-[24px] object-cover shadow-xl mb-5"
-        />
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Create Account</h1>
-        <p className="text-gray-500 text-base mt-1">Join Printing 24/7</p>
+        <img src="/src/assets/logo.png" alt="Printing 24/7 Logo" className="w-28 h-28 rounded-[24px] object-cover shadow-xl mb-5" />
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">{t("createAccount")}</h1>
+        <p className="text-gray-500 text-base mt-1">{t("joinPrinting")}</p>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSignUp} className="w-full max-w-sm space-y-4 mt-2">
-        {/* First Name */}
         <div className="bg-white rounded-2xl flex items-center gap-3 px-4 py-1 shadow-sm border border-gray-200 focus-within:border-blue-400 transition-colors">
           <User className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="First name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            required
-            className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base"
-          />
+          <input type="text" placeholder={t("firstName")} value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base" />
         </div>
-
-        {/* Last Name */}
         <div className="bg-white rounded-2xl flex items-center gap-3 px-4 py-1 shadow-sm border border-gray-200 focus-within:border-blue-400 transition-colors">
           <User className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Last name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            required
-            className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base"
-          />
+          <input type="text" placeholder={t("lastName")} value={lastName} onChange={(e) => setLastName(e.target.value)} required className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base" />
         </div>
-
-        {/* Email */}
         <div className="bg-white rounded-2xl flex items-center gap-3 px-4 py-1 shadow-sm border border-gray-200 focus-within:border-blue-400 transition-colors">
           <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base"
-          />
+          <input type="email" placeholder={t("emailAddress")} value={email} onChange={(e) => setEmail(e.target.value)} required className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base" />
         </div>
-
-        {/* Password */}
         <div className="bg-white rounded-2xl flex items-center gap-3 px-4 py-1 shadow-sm border border-gray-200 focus-within:border-blue-400 transition-colors">
           <Lock className="w-5 h-5 text-gray-400 flex-shrink-0" />
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <input type={showPassword ? "text" : "password"} placeholder={t("password")} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="flex-1 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 text-base" />
+          <button type="button" onClick={() => setShowPassword((v) => !v)} className="text-gray-400 hover:text-gray-600 transition-colors">
             {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
           </button>
         </div>
-
-        {/* Error */}
-        {error && (
-          <p className="text-red-500 text-sm text-center bg-red-50 rounded-xl px-4 py-2">{error}</p>
-        )}
-
-        {/* Sign Up Button */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-500 hover:bg-blue-600 active:scale-[0.98] transition-all duration-150 text-white rounded-2xl py-5 text-xl font-bold shadow-lg shadow-blue-200 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-        >
-          {loading ? "Creating account…" : "Create Account"}
+        {error && <p className="text-red-500 text-sm text-center bg-red-50 rounded-xl px-4 py-2">{error}</p>}
+        <button type="submit" disabled={loading} className="w-full bg-blue-500 hover:bg-blue-600 active:scale-[0.98] transition-all duration-150 text-white rounded-2xl py-5 text-xl font-bold shadow-lg shadow-blue-200 disabled:opacity-60 disabled:cursor-not-allowed mt-2">
+          {loading ? t("creatingAccount") : t("createAccount")}
         </button>
       </form>
 
-      {/* Sign In Link */}
       <p className="mt-8 text-gray-500 text-base">
-        Already have an account?{" "}
-        <button
-          onClick={() => navigate("/login")}
-          className="text-blue-500 font-semibold hover:underline"
-        >
-          Sign In
-        </button>
+        {t("alreadyHaveAccount")}{" "}
+        <button onClick={() => navigate("/login")} className="text-blue-500 font-semibold hover:underline">{t("signIn")}</button>
       </p>
     </div>
   );

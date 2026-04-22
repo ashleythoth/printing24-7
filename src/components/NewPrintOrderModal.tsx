@@ -8,6 +8,7 @@ import { getPageCount } from "@/utils/pageCount";
 import { calculatePriceFromTiers, getApplicableTier, formatPrice, formatUnitPrice } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrintShop, ShopProduct } from "@/integrations/supabase/types";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 declare global {
   interface Window { Square?: any; }
@@ -35,6 +36,7 @@ export default function NewPrintOrderModal({
   onClose: () => void;
   onOrderCreated?: () => void;
 }) {
+  const { t } = useLanguage();
   const [step, setStep] = useState<Step>("upload");
 
   // Upload
@@ -175,7 +177,7 @@ export default function NewPrintOrderModal({
     if (!user) { setSubmitError("You must be logged in."); setSubmitting(false); return; }
 
     // 1. Charge via Square
-    setUploadProgress("Processing payment…");
+    setUploadProgress(t("processingPayment"));
     const amountCents = Math.round(totalPrice * 100);
     const { data: { session } } = await supabase.auth.getSession();
     const paymentRes = await fetch(
@@ -200,14 +202,14 @@ export default function NewPrintOrderModal({
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const path = `${user.id}/${orderId}/${i + 1}_${f.file.name}`;
-      setUploadProgress(`Uploading file ${i + 1} of ${files.length}…`);
+      setUploadProgress(`${t("uploadingFile")} ${i + 1} ${t("of")} ${files.length}…`);
       const { error } = await supabase.storage.from("print-orders").upload(path, f.file, { upsert: false });
       if (error) { setSubmitError(`Failed to upload ${f.file.name}: ${error.message}`); setSubmitting(false); setUploadProgress(""); return; }
       filePaths.push(path);
     }
 
     // 3. Save order
-    setUploadProgress("Saving order…");
+    setUploadProgress(t("savingOrder"));
     const { error: dbError } = await supabase.from("print_orders").insert({
       id: orderId,
       user_id: user.id,
@@ -259,13 +261,13 @@ export default function NewPrintOrderModal({
           <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-2">
             <Check className="w-10 h-10 text-green-500" strokeWidth={3} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Order Submitted!</h2>
-          <p className="text-gray-500 text-center text-sm">Your payment was successful and your print order has been submitted.</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t("orderSubmitted")}</h2>
+          <p className="text-gray-500 text-center text-sm">{t("orderSuccess")}</p>
           <div className="bg-green-50 border border-green-200 rounded-2xl px-5 py-3 w-full text-center">
-            <p className="text-green-700 font-bold text-lg">{formatPrice(totalPrice)} charged</p>
+            <p className="text-green-700 font-bold text-lg">{formatPrice(totalPrice)} {t("charged")}</p>
           </div>
           <button onClick={onClose} className="w-full bg-blue-500 text-white rounded-2xl py-4 font-semibold text-base mt-2 hover:bg-blue-600 transition-colors">
-            Back to Home
+            {t("backToHome")}
           </button>
         </div>
       </div>
@@ -278,7 +280,7 @@ export default function NewPrintOrderModal({
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="text-xl font-bold text-gray-900">New Print Order</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t("newPrintOrderTitle")}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
             <X className="w-4 h-4 text-gray-600" />
           </button>
@@ -295,7 +297,7 @@ export default function NewPrintOrderModal({
 
         <div className="px-5 pb-2">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest">
-            Step {stepIndex + 1} of {STEPS.length} — {STEP_LABELS[step]}
+            {t("step")} {stepIndex + 1} {t("of")} {STEPS.length} — {STEP_LABELS[step]}
           </p>
         </div>
 
@@ -305,14 +307,14 @@ export default function NewPrintOrderModal({
           {/* ── UPLOAD ── */}
           {step === "upload" && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Upload Your Files</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("uploadFiles")}</h3>
               <button onClick={() => fileInputRef.current?.click()}
                 className="w-full border-2 border-dashed border-blue-300 rounded-2xl py-10 flex flex-col items-center gap-3 bg-blue-50 hover:bg-blue-100 transition-colors">
                 <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
                   <Upload className="w-7 h-7 text-blue-500" />
                 </div>
-                <span className="text-blue-600 font-semibold">Tap to upload files</span>
-                <span className="text-gray-400 text-xs">PDF, DOCX, JPG, PNG supported</span>
+                <span className="text-blue-600 font-semibold">{t("tapToUpload")}</span>
+                <span className="text-gray-400 text-xs">{t("supportedFormats")}</span>
               </button>
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.jpg,.jpeg,.png" className="hidden" onChange={handleFileChange} />
               {files.length > 0 && (
@@ -324,9 +326,9 @@ export default function NewPrintOrderModal({
                         <p className="text-sm text-gray-700 truncate font-medium">{f.file.name}</p>
                         <p className="text-xs text-gray-400">
                           {(f.file.size / 1024).toFixed(0)} KB · {f.loading ? (
-                            <span className="inline-flex items-center gap-1 text-blue-400"><Loader2 className="w-3 h-3 animate-spin" />Detecting pages…</span>
+                            <span className="inline-flex items-center gap-1 text-blue-400"><Loader2 className="w-3 h-3 animate-spin" />{t("detectingPages")}</span>
                           ) : (
-                            <span className="text-gray-500 font-medium">{f.pages} {f.pages === 1 ? "page" : "pages"}</span>
+                            <span className="text-gray-500 font-medium">{f.pages} {f.pages === 1 ? t("file") : t("pages")}</span>
                           )}
                         </p>
                       </div>
@@ -337,7 +339,7 @@ export default function NewPrintOrderModal({
                   ))}
                   {!anyLoading && totalPages > 0 && (
                     <div className="flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
-                      <span className="text-sm font-semibold text-blue-700">Total pages</span>
+                      <span className="text-sm font-semibold text-blue-700">{t("totalPages")}</span>
                       <span className="text-sm font-bold text-blue-700">{totalPages}</span>
                     </div>
                   )}
@@ -349,11 +351,11 @@ export default function NewPrintOrderModal({
           {/* ── LOCATION ── */}
           {step === "location" && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Choose a Location</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("chooseLocation")}</h3>
               {shopsLoading ? (
                 <div className="flex items-center justify-center py-10 gap-3">
                   <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-                  <span className="text-gray-500 text-sm">Loading locations…</span>
+                  <span className="text-gray-500 text-sm">{t("loadingLocations")}</span>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -385,14 +387,14 @@ export default function NewPrintOrderModal({
           {/* ── PRODUCT ── */}
           {step === "product" && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Choose a Product</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("chooseProduct")}</h3>
               {shopProductsLoading ? (
                 <div className="flex items-center justify-center py-10 gap-3">
                   <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-                  <span className="text-gray-500 text-sm">Loading products…</span>
+                  <span className="text-gray-500 text-sm">{t("loadingProducts")}</span>
                 </div>
               ) : shopProducts.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">No products available at this location.</div>
+                <div className="text-center py-8 text-gray-400 text-sm">{t("noProductsAvailable")}</div>
               ) : (
                 <>
                   {/* Group by type */}
@@ -403,7 +405,7 @@ export default function NewPrintOrderModal({
                       <div key={type}>
                         <div className="flex items-center gap-2 mb-2">
                           {type === "document" ? <FileType className="w-4 h-4 text-blue-500" /> : <Camera className="w-4 h-4 text-purple-500" />}
-                          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">{type === "document" ? "Documents" : "Photos"}</p>
+                          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">{type === "document" ? t("documents") : t("photos")}</p>
                         </div>
                         <div className="space-y-2 mb-4">
                           {group.map((sp) => {
@@ -428,7 +430,7 @@ export default function NewPrintOrderModal({
                                   </div>
                                   {lowestTier && (
                                     <p className="text-xs text-blue-600 font-semibold mt-1.5">
-                                      From {formatUnitPrice(lowestTier.unit_price)}/{type === "photo" ? "print" : "page"}
+                                      {t("fromPrice")} {formatUnitPrice(lowestTier.unit_price)}{type === "photo" ? t("perPrint") : t("perPage")}
                                     </p>
                                   )}
                                 </div>
@@ -448,13 +450,13 @@ export default function NewPrintOrderModal({
           {/* ── OPTIONS ── */}
           {step === "options" && selectedShopProduct && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Print Options</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("printOptions")}</h3>
               <p className="text-sm text-gray-500 -mt-2">{selectedShopProduct.products?.name}</p>
 
               {/* Color Mode */}
               {selectedShopProduct.products?.color_modes?.length > 0 && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">Color</label>
+                  <label className="text-sm font-semibold text-gray-600 mb-2 block">{t("color")}</label>
                   <div className="flex flex-wrap gap-2">
                     {selectedShopProduct.products.color_modes.map((c) => (
                       <button key={c} onClick={() => setColorMode(c)}
@@ -469,7 +471,7 @@ export default function NewPrintOrderModal({
               {/* Sides */}
               {selectedShopProduct.products?.sides?.length > 0 && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">Sides</label>
+                  <label className="text-sm font-semibold text-gray-600 mb-2 block">{t("sides")}</label>
                   <div className="flex flex-wrap gap-2">
                     {selectedShopProduct.products.sides.map((s) => (
                       <button key={s} onClick={() => setSides(s)}
@@ -484,7 +486,7 @@ export default function NewPrintOrderModal({
               {/* Photo Size */}
               {isPhoto && selectedShopProduct.products?.sizes?.length > 0 && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">Print Size</label>
+                  <label className="text-sm font-semibold text-gray-600 mb-2 block">{t("printSize")}</label>
                   <div className="flex flex-wrap gap-2">
                     {selectedShopProduct.products.sizes.map((s) => (
                       <button key={s} onClick={() => setSize(s)}
@@ -499,7 +501,7 @@ export default function NewPrintOrderModal({
               {/* Finish */}
               {isPhoto && selectedShopProduct.products?.finishes?.length > 0 && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">Finish</label>
+                  <label className="text-sm font-semibold text-gray-600 mb-2 block">{t("finish")}</label>
                   <div className="flex flex-wrap gap-2">
                     {selectedShopProduct.products.finishes.map((f) => (
                       <button key={f} onClick={() => setFinish(f)}
@@ -514,7 +516,7 @@ export default function NewPrintOrderModal({
               {/* Copies */}
               <div>
                 <label className="text-sm font-semibold text-gray-600 mb-2 block">
-                  {isPhoto ? "Number of Prints" : "Copies"}
+                  {isPhoto ? t("numberOfPrints") : t("copies")}
                 </label>
                 <div className="flex items-center gap-4">
                   <button onClick={() => setCopies((c) => Math.max(1, c - 1))}
@@ -528,22 +530,22 @@ export default function NewPrintOrderModal({
               {/* Pricing breakdown */}
               {tiers.length > 0 && (
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-4 space-y-2">
-                  <p className="text-xs font-bold text-blue-500 uppercase tracking-widest">Pricing</p>
+                  <p className="text-xs font-bold text-blue-500 uppercase tracking-widest">{t("pricing")}</p>
                   {[...tiers].sort((a, b) => a.min_quantity - b.min_quantity).map((tier) => {
                     const isActive = applicableTier?.id === tier.id;
                     return (
                       <div key={tier.id} className={`flex justify-between text-sm rounded-lg px-2 py-1 transition-colors ${isActive ? "bg-blue-200/50 font-bold text-blue-800" : "text-blue-700"}`}>
                         <span>
-                          {tier.min_quantity}{tier.max_quantity ? `–${tier.max_quantity}` : "+"} {isPhoto ? "prints" : "pages"}
-                          {isActive && <span className="ml-2 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded-full">current</span>}
+                          {tier.min_quantity}{tier.max_quantity ? `–${tier.max_quantity}` : "+"} {isPhoto ? t("prints") : t("pages")}
+                          {isActive && <span className="ml-2 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded-full">{t("current")}</span>}
                         </span>
-                        <span>{formatUnitPrice(tier.unit_price)}/{isPhoto ? "print" : "page"}</span>
+                        <span>{formatUnitPrice(tier.unit_price)}{isPhoto ? t("perPrint") : t("perPage")}</span>
                       </div>
                     );
                   })}
                   <div className="border-t border-blue-200 pt-2 flex justify-between font-bold text-blue-800 text-base">
                     <span>
-                      {isPhoto ? `${copies} prints` : `${totalPages} pages × ${copies} ${copies === 1 ? "copy" : "copies"}`}
+                      {isPhoto ? `${copies} ${t("prints")}` : `${totalPages} ${t("pages")} × ${copies} ${copies === 1 ? t("copy") : t("copies")}`}
                     </span>
                     <span>{formatPrice(totalPrice)}</span>
                   </div>
@@ -555,11 +557,11 @@ export default function NewPrintOrderModal({
           {/* ── PAYMENT ── */}
           {step === "payment" && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Payment</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("payment")}</h3>
               <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-blue-500" />
-                  <span className="text-sm font-semibold text-blue-700">Amount due</span>
+                  <span className="text-sm font-semibold text-blue-700">{t("amountDue")}</span>
                 </div>
                 <span className="text-xl font-extrabold text-blue-800">{formatPrice(totalPrice)}</span>
               </div>
@@ -567,8 +569,8 @@ export default function NewPrintOrderModal({
                 <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-4">
                   <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
                   <div>
-                    <p className="text-green-700 font-semibold text-sm">Card saved</p>
-                    <p className="text-green-600 text-xs">Your card details are ready. Click Next to review and submit.</p>
+                    <p className="text-green-700 font-semibold text-sm">{t("cardSaved")}</p>
+                    <p className="text-green-600 text-xs">{t("cardReady")}</p>
                   </div>
                 </div>
               ) : (
@@ -576,7 +578,7 @@ export default function NewPrintOrderModal({
                   {squareLoading && !squareCard && (
                     <div className="flex items-center justify-center py-10 gap-3">
                       <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-                      <span className="text-gray-500 text-sm">Loading payment form…</span>
+                      <span className="text-gray-500 text-sm">{t("loadingPaymentForm")}</span>
                     </div>
                   )}
                   <div ref={cardContainerRef} className={`min-h-[100px] rounded-2xl border-2 border-gray-200 overflow-hidden bg-white px-2 py-2 ${squareLoading && !squareCard ? "hidden" : ""}`} />
@@ -586,7 +588,7 @@ export default function NewPrintOrderModal({
                       <p className="text-red-600 text-sm">{paymentError}</p>
                     </div>
                   )}
-                  <p className="text-xs text-gray-400 text-center">🔒 Payments are securely processed by Square</p>
+                  <p className="text-xs text-gray-400 text-center">{t("securePayment")}</p>
                 </>
               )}
             </>
@@ -595,18 +597,18 @@ export default function NewPrintOrderModal({
           {/* ── SUBMIT ── */}
           {step === "submit" && (
             <>
-              <h3 className="text-lg font-bold text-gray-800">Review & Submit</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t("reviewSubmit")}</h3>
               <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                 {[
-                  ["Product", selectedShopProduct?.products?.name],
-                  ["Location", selectedShop?.name],
-                  ["Files", `${files.length} ${files.length === 1 ? "file" : "files"}`],
-                  ...(!isPhoto ? [["Total Pages", String(totalPages)]] : []),
-                  ["Color", colorMode],
-                  ["Sides", sides],
-                  ...(isPhoto ? [["Size", size], ["Finish", finish]] : []),
-                  ["Copies", String(copies)],
-                  ...(isPhoto ? [["Total Prints", String(quantity)]] : []),
+                  [t("product"), selectedShopProduct?.products?.name],
+                  [t("location"), selectedShop?.name],
+                  [t("files"), `${files.length} ${files.length === 1 ? t("file") : t("files")}`],
+                  ...(!isPhoto ? [[t("totalPages"), String(totalPages)]] : []),
+                  [t("color"), colorMode],
+                  [t("sides"), sides],
+                  ...(isPhoto ? [[t("printSize"), size], [t("finish"), finish]] : []),
+                  [t("copies"), String(copies)],
+                  ...(isPhoto ? [[t("totalPrints"), String(quantity)]] : []),
                 ].map(([label, value], i, arr) => (
                   <div key={label}>
                     <div className="flex justify-between text-sm">
@@ -618,7 +620,7 @@ export default function NewPrintOrderModal({
                 ))}
                 <div className="h-px bg-gray-200" />
                 <div className="flex justify-between text-base font-bold">
-                  <span className="text-gray-700">Total</span>
+                  <span className="text-gray-700">{t("total")}</span>
                   <span className="text-blue-600 text-lg">{formatPrice(totalPrice)}</span>
                 </div>
               </div>
@@ -643,17 +645,17 @@ export default function NewPrintOrderModal({
         <div className="px-5 pb-8 pt-3 flex gap-3 border-t border-gray-100">
           {stepIndex > 0 && !submitting && (
             <button onClick={prevStep} className="flex-1 border-2 border-gray-200 text-gray-600 rounded-2xl py-4 font-semibold text-base hover:bg-gray-50 transition-colors">
-              Back
+              {t("back")}
             </button>
           )}
           <button onClick={nextStep} disabled={!canProceed}
             className={`flex-1 rounded-2xl py-4 font-semibold text-base transition-all flex items-center justify-center gap-2 ${canProceed ? "bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-200" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
             {step === "payment" && !paymentToken ? (
-              squareLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> Processing…</> : <><CreditCard className="w-5 h-5" /> Save Card</>
+              squareLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> {t("processing")}</> : <><CreditCard className="w-5 h-5" /> {t("saveCard")}</>
             ) : step === "submit" ? (
-              submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</> : <><CheckSquare className="w-5 h-5" /> Pay & Submit</>
+              submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> {t("submitting")}</> : <><CheckSquare className="w-5 h-5" /> {t("payAndSubmit")}</>
             ) : (
-              <>Next <ChevronRight className="w-5 h-5" /></>
+              <>{t("next")} <ChevronRight className="w-5 h-5" /></>
             )}
           </button>
         </div>
