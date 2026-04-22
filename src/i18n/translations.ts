@@ -140,6 +140,15 @@ export const translations = {
     pageNotFound: "Oops! Page not found",
     returnHome: "Return to Home",
 
+    // Map / location picker
+    findNearestShop: "Use My Location",
+    locatingYou: "Locating you…",
+    nearest: "Nearest",
+    tapMapToSelect: "Tap a pin on the map to select a shop",
+    selectThisShop: "Select This Shop",
+    gpsPermissionDenied: "Location access denied. Please enable it in your browser settings.",
+    gpsUnavailable: "Could not get your location. Please try again.",
+
     // Order statuses
     status_SUBMITTED: "Submitted",
     status_pending: "Pending",
@@ -286,6 +295,15 @@ export const translations = {
     // Not Found
     pageNotFound: "¡Ups! Página no encontrada",
     returnHome: "Volver al Inicio",
+
+    // Map / location picker
+    findNearestShop: "Usar Mi Ubicación",
+    locatingYou: "Localizándote…",
+    nearest: "Más Cercano",
+    tapMapToSelect: "Toca un marcador en el mapa para seleccionar una tienda",
+    selectThisShop: "Seleccionar Esta Tienda",
+    gpsPermissionDenied: "Acceso a ubicación denegado. Actívalo en la configuración de tu navegador.",
+    gpsUnavailable: "No se pudo obtener tu ubicación. Inténtalo de nuevo.",
 
     // Order statuses
     status_SUBMITTED: "Enviado",

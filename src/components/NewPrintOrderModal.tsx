@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  X, Upload, MapPin, CheckSquare, ChevronRight, FileText,
+  X, Upload, CheckSquare, ChevronRight, FileText,
   Check, Loader2, AlertCircle, CreditCard, DollarSign,
-  Phone, Mail, Camera, FileType,
+  Camera, FileType,
 } from "lucide-react";
+import ShopMapPicker from "@/components/ShopMapPicker";
 import { getPageCount } from "@/utils/pageCount";
 import { calculatePriceFromTiers, getApplicableTier, formatPrice, formatUnitPrice } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
@@ -358,28 +359,11 @@ export default function NewPrintOrderModal({
                   <span className="text-gray-500 text-sm">{t("loadingLocations")}</span>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {shops.map((shop) => {
-                    const selected = selectedShop?.id === shop.id;
-                    return (
-                      <button key={shop.id} onClick={() => setSelectedShop(shop)}
-                        className={`w-full flex items-start gap-3 rounded-2xl px-4 py-4 border-2 transition-all text-left ${selected ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${selected ? "bg-blue-100" : "bg-gray-100"}`}>
-                          <MapPin className={`w-5 h-5 ${selected ? "text-blue-500" : "text-gray-400"}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold ${selected ? "text-blue-700" : "text-gray-800"}`}>{shop.name}</p>
-                          {shop.address && <p className="text-xs text-gray-500 mt-0.5">{shop.address}</p>}
-                          <div className="flex flex-wrap gap-3 mt-1.5">
-                            {shop.phone && <span className="flex items-center gap-1 text-xs text-gray-400"><Phone className="w-3 h-3" />{shop.phone}</span>}
-                            {shop.email && <span className="flex items-center gap-1 text-xs text-gray-400"><Mail className="w-3 h-3" />{shop.email}</span>}
-                          </div>
-                        </div>
-                        {selected && <Check className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                <ShopMapPicker
+                  shops={shops}
+                  selected={selectedShop}
+                  onSelect={setSelectedShop}
+                />
               )}
             </>
           )}

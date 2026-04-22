@@ -6,6 +6,8 @@ export interface PrintShop {
   address: string;
   status: string;
   created_at: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface Product {
