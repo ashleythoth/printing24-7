@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, FileText, Clock, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe, Navigation } from "lucide-react";
+import { Settings, Plus, FileText, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe, Navigation } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrintOrder } from "@/integrations/supabase/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { statusStyles } from "@/i18n/translations";
 
 function StepIcon({ icon, color, iconColor }: { icon: string; color: string; iconColor: string }) {
   const cls = `w-14 h-14 rounded-full ${color} flex items-center justify-center`;
@@ -175,10 +176,16 @@ export default function Index() {
                         {order.file_paths.length} {order.file_paths.length === 1 ? t("file") : t("files")}
                       </span>
                     </div>
-                    <span className="flex items-center gap-1.5 bg-orange-50 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-200">
-                      <Clock className="w-3.5 h-3.5" />
-                      {order.status}
-                    </span>
+                    {(() => {
+                      const style = statusStyles[order.status] ?? statusStyles["pending"];
+                      const key = `status_${order.status}` as any;
+                      return (
+                        <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${style.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                          {t(key)}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <h3 className="text-base font-bold text-gray-900 mb-1">{order.print_shops?.name ?? "Unknown Shop"}</h3>
                   <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">

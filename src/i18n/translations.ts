@@ -139,6 +139,13 @@ export const translations = {
     // Not Found
     pageNotFound: "Oops! Page not found",
     returnHome: "Return to Home",
+
+    // Order statuses
+    status_SUBMITTED: "Submitted",
+    status_pending: "Pending",
+    status_ready: "Ready for Pickup",
+    status_completed: "Completed",
+    status_cancelled: "Cancelled",
   },
 
   es: {
@@ -279,7 +286,22 @@ export const translations = {
     // Not Found
     pageNotFound: "¡Ups! Página no encontrada",
     returnHome: "Volver al Inicio",
+
+    // Order statuses
+    status_SUBMITTED: "Enviado",
+    status_pending: "Pendiente",
+    status_ready: "Listo para Recoger",
+    status_completed: "Completado",
+    status_cancelled: "Cancelado",
   },
 } as const;
 
 export type TranslationKey = keyof typeof translations.en;
+
+export const statusStyles: Record<string, { badge: string; dot: string }> = {
+  SUBMITTED: { badge: "bg-blue-50 text-blue-600 border-blue-200",   dot: "bg-blue-400" },
+  pending:   { badge: "bg-orange-50 text-orange-500 border-orange-200", dot: "bg-orange-400" },
+  ready:     { badge: "bg-green-50 text-green-600 border-green-200",  dot: "bg-green-400" },
+  completed: { badge: "bg-gray-100 text-gray-500 border-gray-200",   dot: "bg-gray-400" },
+  cancelled: { badge: "bg-red-50 text-red-500 border-red-200",       dot: "bg-red-400" },
+};
