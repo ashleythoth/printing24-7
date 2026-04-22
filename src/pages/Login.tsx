@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
+import logoUrl from "@/assets/logo.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ export default function Login() {
       {/* Logo */}
       <div className="mb-6 flex flex-col items-center">
         <img
-          src="/src/assets/logo.png"
+          src={logoUrl}
           alt="Printing 24/7 Logo"
           className="w-36 h-36 rounded-[28px] object-cover shadow-xl mb-6"
         />
