@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { LanguageProvider } from "./i18n/LanguageContext";
+import { UnitsProvider } from "./i18n/UnitsContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -52,6 +53,7 @@ const App = () => {
 
   return (
     <LanguageProvider>
+    <UnitsProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -96,6 +98,7 @@ const App = () => {
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
+    </UnitsProvider>
     </LanguageProvider>
     );
 };

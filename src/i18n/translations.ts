@@ -19,6 +19,11 @@ export const translations = {
     english: "English",
     spanish: "Español",
 
+    // Units toggle
+    units: "Distance",
+    imperial: "Imperial",
+    metric: "Metric",
+
     // Login
     signInToContinue: "Sign in to continue",
     emailAddress: "Email address",
@@ -175,6 +180,11 @@ export const translations = {
     language: "Idioma",
     english: "English",
     spanish: "Español",
+
+    // Units toggle
+    units: "Distancia",
+    imperial: "Imperial",
+    metric: "Métrico",
 
     // Login
     signInToContinue: "Inicia sesión para continuar",

@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { Loader2, Navigation, MapPin, Check, Phone, Mail } from "lucide-react";
 import type { PrintShop } from "@/integrations/supabase/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useUnits } from "@/i18n/UnitsContext";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -57,11 +58,6 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function formatDist(km: number) {
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  return `${km.toFixed(1)} km`;
-}
-
 interface ShopWithDist extends PrintShop {
   distKm: number;
 }
@@ -74,6 +70,7 @@ interface Props {
 
 export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
   const { t } = useLanguage();
+  const { formatDist } = useUnits();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());

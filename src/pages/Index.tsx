@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, FileText, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe, Navigation } from "lucide-react";
+import { Settings, Plus, FileText, MapPin, SlidersHorizontal, CheckSquare, ChevronRight, LogOut, UserCircle, Globe, Navigation, Ruler } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NewPrintOrderModal from "@/components/NewPrintOrderModal";
 import { supabase } from "@/integrations/supabase/client";
 import type { PrintOrder } from "@/integrations/supabase/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useUnits } from "@/i18n/UnitsContext";
 import { statusStyles } from "@/i18n/translations";
 
 function StepIcon({ icon, color, iconColor }: { icon: string; color: string; iconColor: string }) {
@@ -31,6 +32,7 @@ function formatDate(dateStr: string) {
 export default function Index() {
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
+  const { units, setUnits } = useUnits();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userName, setUserName] = useState("there");
@@ -99,6 +101,24 @@ export default function Index() {
                       className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${language === "es" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
                     >
                       ES
+                    </button>
+                  </div>
+                </div>
+                {/* Units toggle */}
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
+                  <Ruler className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  <div className="flex gap-1 flex-1">
+                    <button
+                      onClick={() => setUnits("imperial")}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${units === "imperial" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      {t("imperial")}
+                    </button>
+                    <button
+                      onClick={() => setUnits("metric")}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-colors ${units === "metric" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      {t("metric")}
                     </button>
                   </div>
                 </div>
