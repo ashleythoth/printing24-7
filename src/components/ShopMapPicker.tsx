@@ -5,7 +5,6 @@ import { Loader2, Navigation, MapPin, Check, Phone, Mail } from "lucide-react";
 import type { PrintShop } from "@/integrations/supabase/types";
 import { useLanguage } from "@/i18n/LanguageContext";
 
-// Fix Leaflet default marker icon paths broken by bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -13,30 +12,36 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-function makeShopIcon(selected: boolean, nearest: boolean) {
-  const color = selected ? "#3b82f6" : nearest ? "#10b981" : "#6b7280";
-  const size = selected ? 36 : nearest ? 32 : 28;
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size * 1.3}" viewBox="0 0 24 32">
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20S24 21 24 12C24 5.373 18.627 0 12 0z"
-        fill="${color}" stroke="white" stroke-width="1.5"/>
-      <circle cx="12" cy="12" r="5" fill="white"/>
-    </svg>`;
+function makeShopIcon(selected: boolean, rank: number | null) {
+  // rank: 1 = nearest (green), 2-5 = teal, null = gray
+  const color = selected
+    ? "#3b82f6"
+    : rank === 1
+    ? "#10b981"
+    : rank != null
+    ? "#14b8a6"
+    : "#9ca3af";
+  const size = selected ? 36 : rank === 1 ? 34 : rank != null ? 30 : 26;
+  const label = rank != null ? `<text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="${selected ? "#3b82f6" : rank === 1 ? "#10b981" : "#14b8a6"}" font-family="sans-serif">${rank}</text>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${Math.round(size * 1.3)}" viewBox="0 0 24 32">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20S24 21 24 12C24 5.373 18.627 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="6" fill="white"/>
+    ${label}
+  </svg>`;
   return L.divIcon({
     html: svg,
     className: "",
-    iconSize: [size, size * 1.3],
-    iconAnchor: [size / 2, size * 1.3],
-    popupAnchor: [0, -(size * 1.3)],
+    iconSize: [size, Math.round(size * 1.3)],
+    iconAnchor: [size / 2, Math.round(size * 1.3)],
+    popupAnchor: [0, -Math.round(size * 1.3)],
   });
 }
 
 function makeUserIcon() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
-      <circle cx="11" cy="11" r="9" fill="#3b82f6" stroke="white" stroke-width="2.5"/>
-      <circle cx="11" cy="11" r="4" fill="white"/>
-    </svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+    <circle cx="11" cy="11" r="9" fill="#3b82f6" stroke="white" stroke-width="2.5"/>
+    <circle cx="11" cy="11" r="4" fill="white"/>
+  </svg>`;
   return L.divIcon({ html: svg, className: "", iconSize: [22, 22], iconAnchor: [11, 11] });
 }
 
@@ -57,6 +62,10 @@ function formatDist(km: number) {
   return `${km.toFixed(1)} km`;
 }
 
+interface ShopWithDist extends PrintShop {
+  distKm: number;
+}
+
 interface Props {
   shops: PrintShop[];
   selected: PrintShop | null;
@@ -73,40 +82,35 @@ export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState("");
-  const [nearestShop, setNearestShop] = useState<PrintShop | null>(null);
-  const [bottomShop, setBottomShop] = useState<PrintShop | null>(selected);
+  const [closestFive, setClosestFive] = useState<ShopWithDist[]>([]);
 
   const shopsWithCoords = shops.filter((s) => s.lat != null && s.lng != null);
+
+  // rank map: shopId -> 1-5 (only set after GPS)
+  const rankMap = new Map<string, number>();
+  closestFive.forEach((s, i) => rankMap.set(s.id, i + 1));
 
   // Init map once
   useEffect(() => {
     if (mapRef.current || !mapContainerRef.current) return;
-
     const map = L.map(mapContainerRef.current, {
       center: [39.5, -98.35],
       zoom: 4,
       zoomControl: true,
     });
-
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
       maxZoom: 19,
     }).addTo(map);
-
     mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+    return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // Add/update shop markers whenever shops or selection changes
+  // Add/update markers whenever shops, selection, or closest-five changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove old markers not in current shops
     markersRef.current.forEach((marker, id) => {
       if (!shopsWithCoords.find((s) => s.id === id)) {
         marker.remove();
@@ -116,38 +120,31 @@ export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
 
     shopsWithCoords.forEach((shop) => {
       const isSelected = selected?.id === shop.id;
-      const isNearest = nearestShop?.id === shop.id;
-      const icon = makeShopIcon(isSelected, isNearest);
+      const rank = rankMap.get(shop.id) ?? null;
+      const icon = makeShopIcon(isSelected, rank);
 
       if (markersRef.current.has(shop.id)) {
         markersRef.current.get(shop.id)!.setIcon(icon);
       } else {
         const marker = L.marker([shop.lat!, shop.lng!], { icon })
           .addTo(map)
-          .on("click", () => {
-            onSelect(shop);
-            setBottomShop(shop);
-          });
+          .on("click", () => onSelect(shop));
         markersRef.current.set(shop.id, marker);
       }
     });
 
-    // Fit bounds to all shops if nothing selected yet
-    if (!selected && shopsWithCoords.length > 0) {
+    if (!selected && closestFive.length === 0 && shopsWithCoords.length > 0) {
       const bounds = L.latLngBounds(shopsWithCoords.map((s) => [s.lat!, s.lng!]));
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
     }
-  }, [shopsWithCoords, selected, nearestShop]);
+  }, [shopsWithCoords, selected, closestFive]);
 
-  // Pan to selected shop
+  // Pan to selected shop when it changes
   useEffect(() => {
-    if (selected && mapRef.current) {
-      if (selected.lat != null && selected.lng != null) {
-        mapRef.current.setView([selected.lat, selected.lng], 14, { animate: true });
-      }
-      setBottomShop(selected);
+    if (selected?.lat != null && selected?.lng != null && mapRef.current) {
+      mapRef.current.setView([selected.lat, selected.lng], 14, { animate: true });
     }
-  }, [selected]);
+  }, [selected?.id]);
 
   function locateUser() {
     setGpsLoading(true);
@@ -161,27 +158,29 @@ export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
         const map = mapRef.current;
         if (!map) return;
 
-        // Place / move user dot
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng([lat, lng]);
         } else {
-          userMarkerRef.current = L.marker([lat, lng], { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
+          userMarkerRef.current = L.marker([lat, lng], {
+            icon: makeUserIcon(),
+            zIndexOffset: 1000,
+          }).addTo(map);
         }
 
-        // Find nearest shop
-        let nearest: PrintShop | null = null;
-        let minDist = Infinity;
-        shopsWithCoords.forEach((shop) => {
-          const d = distanceKm(lat, lng, shop.lat!, shop.lng!);
-          if (d < minDist) { minDist = d; nearest = shop; }
-        });
+        // Sort all shops by distance, take top 5
+        const sorted = shopsWithCoords
+          .map((shop) => ({ ...shop, distKm: distanceKm(lat, lng, shop.lat!, shop.lng!) }))
+          .sort((a, b) => a.distKm - b.distKm)
+          .slice(0, 5) as ShopWithDist[];
 
-        setNearestShop(nearest);
+        setClosestFive(sorted);
 
-        if (nearest) {
-          onSelect(nearest);
-          setBottomShop(nearest);
-          map.setView([(lat + nearest.lat!) / 2, (lng + nearest.lng!) / 2], 12, { animate: true });
+        // Auto-select nearest
+        if (sorted.length > 0) {
+          onSelect(sorted[0]);
+          // Fit map to user + top 5
+          const points: [number, number][] = [[lat, lng], ...sorted.map((s) => [s.lat!, s.lng!] as [number, number])];
+          map.fitBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 13, animate: true });
         } else {
           map.setView([lat, lng], 12, { animate: true });
         }
@@ -194,10 +193,7 @@ export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
     );
   }
 
-  const distToSelected =
-    userPos && selected?.lat != null && selected?.lng != null
-      ? distanceKm(userPos.lat, userPos.lng, selected.lat, selected.lng)
-      : null;
+  const listToShow = closestFive.length > 0 ? closestFive : [];
 
   return (
     <div className="flex flex-col gap-3">
@@ -212,61 +208,70 @@ export default function ShopMapPicker({ shops, selected, onSelect }: Props) {
           : <><Navigation className="w-4 h-4" /> {t("findNearestShop")}</>}
       </button>
 
-      {gpsError && (
-        <p className="text-xs text-red-500 text-center -mt-1">{gpsError}</p>
-      )}
+      {gpsError && <p className="text-xs text-red-500 text-center -mt-1">{gpsError}</p>}
 
       {/* Map */}
       <div
         ref={mapContainerRef}
         className="w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm"
-        style={{ height: 260 }}
+        style={{ height: 240 }}
       />
 
-      {/* Selected shop card */}
-      {bottomShop && (
-        <div className={`rounded-2xl border-2 px-4 py-3.5 transition-all ${selected?.id === bottomShop.id ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}>
-          <div className="flex items-start gap-3">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${selected?.id === bottomShop.id ? "bg-blue-100" : "bg-gray-100"}`}>
-              <MapPin className={`w-5 h-5 ${selected?.id === bottomShop.id ? "text-blue-500" : "text-gray-400"}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className={`text-sm font-bold ${selected?.id === bottomShop.id ? "text-blue-700" : "text-gray-800"}`}>
-                  {bottomShop.name}
-                </p>
-                {nearestShop?.id === bottomShop.id && (
-                  <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
-                    {t("nearest")}
-                  </span>
-                )}
-                {distToSelected != null && selected?.id === bottomShop.id && (
-                  <span className="text-xs text-gray-400 font-medium">{formatDist(distToSelected)}</span>
-                )}
-              </div>
-              {bottomShop.address && <p className="text-xs text-gray-500 mt-0.5">{bottomShop.address}</p>}
-              <div className="flex flex-wrap gap-3 mt-1">
-                {bottomShop.phone && <span className="flex items-center gap-1 text-xs text-gray-400"><Phone className="w-3 h-3" />{bottomShop.phone}</span>}
-                {bottomShop.email && <span className="flex items-center gap-1 text-xs text-gray-400"><Mail className="w-3 h-3" />{bottomShop.email}</span>}
-              </div>
-            </div>
-            {selected?.id === bottomShop.id && (
-              <Check className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            )}
-          </div>
-          {selected?.id !== bottomShop.id && (
-            <button
-              onClick={() => onSelect(bottomShop)}
-              className="mt-2.5 w-full py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
-            >
-              {t("selectThisShop")}
-            </button>
-          )}
+      {/* 5 closest shops list */}
+      {listToShow.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">
+            {t("closestLocations")}
+          </p>
+          {listToShow.map((shop, i) => {
+            const isSelected = selected?.id === shop.id;
+            const rank = i + 1;
+            const rankColor =
+              rank === 1 ? "bg-green-100 text-green-700" : "bg-teal-50 text-teal-600";
+            return (
+              <button
+                key={shop.id}
+                onClick={() => onSelect(shop)}
+                className={`w-full flex items-start gap-3 rounded-2xl px-4 py-3.5 border-2 transition-all text-left ${
+                  isSelected
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                {/* Rank badge */}
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-extrabold ${isSelected ? "bg-blue-500 text-white" : rankColor}`}>
+                  {rank}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-sm font-bold ${isSelected ? "text-blue-700" : "text-gray-800"}`}>
+                      {shop.name}
+                    </p>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isSelected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
+                      {formatDist(shop.distKm)}
+                    </span>
+                    {rank === 1 && (
+                      <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
+                        {t("nearest")}
+                      </span>
+                    )}
+                  </div>
+                  {shop.address && <p className="text-xs text-gray-500 mt-0.5">{shop.address}</p>}
+                  <div className="flex flex-wrap gap-3 mt-1">
+                    {shop.phone && <span className="flex items-center gap-1 text-xs text-gray-400"><Phone className="w-3 h-3" />{shop.phone}</span>}
+                    {shop.email && <span className="flex items-center gap-1 text-xs text-gray-400"><Mail className="w-3 h-3" />{shop.email}</span>}
+                  </div>
+                </div>
+                {isSelected && <Check className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />}
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {!bottomShop && (
-        <p className="text-center text-sm text-gray-400">{t("tapMapToSelect")}</p>
+      ) : (
+        <div className="flex items-center gap-2 justify-center py-2">
+          <MapPin className="w-4 h-4 text-gray-300" />
+          <p className="text-sm text-gray-400">{t("tapMapToSelect")}</p>
+        </div>
       )}
     </div>
   );
